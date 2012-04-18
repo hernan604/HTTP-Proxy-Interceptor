@@ -54,7 +54,6 @@ use IO::Uncompress::Gunzip qw(gunzip $GunzipError) ;
 
 after 'set_response' => sub {
     my ( $self, $http_request ) = @_; 
-
     if ( defined $http_request and
          exists $self->urls_to_proxy->{ $self->url } and 
          exists $self->urls_to_proxy->{ $self->url }->{ code } ) {
@@ -66,13 +65,13 @@ after 'set_response' => sub {
                         MultiStream => 1, Append => 1, TrailingData => \$scalar
                or die "gunzip failed: $GunzipError\n";
             if ( defined $content_decompressed ) {
-                warn "  INTERCEPTED => " , $self->url , "\n";
-                $content_decompressed = $self->urls_to_proxy->{ $self->url }->{ code }( $self, $content_decompressed );
                 $http_request->content( $content_decompressed );
-                delete $http_request->{ _headers }->{ "content-encoding" };
-                       $http_request->{ _headers }->{ "content-length" } = length $content_decompressed;
             }
         }
+        my $new_content = $self->urls_to_proxy->{ $self->url }->{ code }( $self, $http_request->content );
+        delete $http_request->{ _headers }->{ "content-encoding" };
+               $http_request->{ _headers }->{ "content-length" } = length $new_content;
+        $self->content( $new_content );
     }
 };
 
