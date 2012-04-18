@@ -68,6 +68,7 @@ after 'set_response' => sub {
                 $http_request->content( $content_decompressed );
             }
         }
+        warn "  INTERCEPTED => " , $self->url , "\n";
         my $new_content = $self->urls_to_proxy->{ $self->url }->{ code }( $self, $http_request->content );
         delete $http_request->{ _headers }->{ "content-encoding" };
                $http_request->{ _headers }->{ "content-length" } = length $new_content;
