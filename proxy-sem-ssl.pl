@@ -90,6 +90,10 @@ Neste momento são permitidas 3 tipos de configuração.
       }
     }
 
+=head2 AUTHORS
+
+Hernan Lopes
+
 =cut
 
 my $url_intercept = {};
