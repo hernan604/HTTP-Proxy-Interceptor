@@ -6,19 +6,19 @@ use Data::Printer;
 sub invert_image {
   my ( $self, $args ) = @_; 
   return 0 if $self->http_request->uri->as_string !~ m/(png|gif|jpg|jpeg|bmp)$/;
-  my $req = HTTP::Request->new( $self->http_request->method => $self->http_request->uri->as_string );
-  my $res = $self->ua->request( $req );
+  my $req   = HTTP::Request->new( $self->http_request->method => $self->http_request->uri->as_string );
+  my $res   = $self->ua->request( $req );
   my $image = GD::Image->new( $res->content );
   return 0 if ! defined $image;
-  $image = $image->copyRotate180();
+  $image    = $image->copyRotate180();
   $self->content( $image->gif() );
   return 0;
 }
 
-sub BUILD {
+after 'BUILD'=>sub {
     my ( $self ) = @_; 
     $self->append_plugin_method( "invert_image" );
-}
+};
 
 1;
 
@@ -54,10 +54,10 @@ sub replace_for_relativepath {
   }
 }
 
-sub BUILD {
+after 'BUILD'=>sub {
     my ( $self ) = @_; 
     $self->append_plugin_method( "replace_for_relativepath" );
-}
+};
 
 1;
 
@@ -68,6 +68,7 @@ use Data::Printer;
 
 sub replace_url {
   my ( $self, $args ) = @_; 
+warn $self->urls_to_proxy->{ $self->http_request->{ _uri }->as_string }->{ url };
   if (  exists $self->urls_to_proxy->{ $self->http_request->{ _uri }->as_string } && 
         exists $self->urls_to_proxy->{ $self->http_request->{ _uri }->as_string }->{ url } ) {
     my $nova_url = 
@@ -87,10 +88,10 @@ sub replace_url {
   }
 }
 
-sub BUILD {
+after 'BUILD'=>sub {
     my ( $self ) = @_; 
     $self->append_plugin_method( "replace_url" );
-}
+};
 
 1;
 
@@ -111,10 +112,10 @@ sub abre_arquivo {
   }
 }
 
-sub BUILD {
+after 'BUILD'=>sub {
     my ( $self ) = @_; 
     $self->append_plugin_method( "abre_arquivo" );
-}
+};
 
 1;
 
@@ -397,5 +398,4 @@ with qw/
 1;
 
 my $proxy = Meu::Proxy->new();
-warn p $proxy;
 Meu::Proxy->run(  port => $proxy->porta );
