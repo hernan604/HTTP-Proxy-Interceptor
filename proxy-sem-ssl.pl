@@ -1,3 +1,10 @@
+=head2
+
+Plugin que inverte todas as imagens em todas as páginas e as faz aparecer de ponta cabeça
+
+=cut 
+
+
 package HTTP::URL::Intercept::Proxy::Plugin::ImageInverter;
 use Moose::Role;
 use GD::Image;
@@ -37,6 +44,17 @@ after 'BUILD'=>sub {
 package HTTP::URL::Intercept::Proxy::Plugin::RelativePath;
 use Moose::Role;
 
+=head2
+
+Este plugin permite mapear um diretório remoto para um diretório local, ex:
+
+    dir remoto: http://www.site.com.br/scripts/js/(.+)
+    dir local:                      /home/user/js/....
+
+Vai tentar pegar nos mesmos diretórios mas vai abrir arquivos locais ao invés de remotos
+
+=cut
+
 sub replace_for_relativepath {
   my ( $self, $args ) = @_; 
   foreach my $url ( keys $self->urls_to_proxy ) {
@@ -65,6 +83,16 @@ package HTTP::URL::Intercept::Proxy::Plugin::UrlReplacer;
 use Moose::Role;
 use URI;
 use Data::Printer;
+
+=head2
+
+Permite mapear uma url em outra url.. ou seja, quando seu browser tentar abrir uma url,
+
+ele vai pensar que está abrindo essa url mas na verdade o conteúdo que o browser receber terá 
+
+vindo da outra url que você mapeou.
+
+=cut
 
 sub replace_url {
   my ( $self, $args ) = @_; 
@@ -96,6 +124,12 @@ after 'BUILD'=>sub {
 
 package HTTP::URL::Intercept::Proxy::Plugin::File;
 use Moose::Role;
+
+=head2
+
+Plugin para abrir o conteudo de um arquivo e sobreescrever o conteúdo de uma url
+
+=cut
 
 sub abre_arquivo {
   my ( $self, $args ) = @_; 
@@ -281,7 +315,8 @@ sub load_config {
           "file" : "/home/hernan/teste.js"
       },
       "http://www.site.com.br/some/c/coolscript.js?ABC=xyz" : {
-          "url" : "http://www.outra-url.com.br/por-este-arquivo-no-lugar/novo_coolscripts.js?nome=maria"
+          "url" : "http://www.outra-url.com.br/por-este-arquivo-no-lugar/novo_coolscripts.js?nome=maria",
+          "use_random_var"  : false
       },
       "http://publicador.intranet/resources/(?<caminho>.+)" : {
           "relative_path" : "/home/hernan/publicador/resources/"
