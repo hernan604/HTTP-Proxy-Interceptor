@@ -68,7 +68,6 @@ use Data::Printer;
 
 sub replace_url {
   my ( $self, $args ) = @_; 
-warn $self->urls_to_proxy->{ $self->http_request->{ _uri }->as_string }->{ url };
   if (  exists $self->urls_to_proxy->{ $self->http_request->{ _uri }->as_string } && 
         exists $self->urls_to_proxy->{ $self->http_request->{ _uri }->as_string }->{ url } ) {
     my $nova_url = 
@@ -320,13 +319,17 @@ sub print_file_as_request {
   my ( $self, $caminho ) = @_; 
   my $conteudo = read_file( $caminho ) if -e $caminho;
   warn "  INTERCEPTED => ", $caminho, "\n";
-  $self->string_content_as_http_request( $conteudo );
+  $self->content_as_http_request( {
+    conteudo    => $conteudo,
+    status_line => "HTTP/1.1 200 OK\n",
+  } );
 }
 
-sub string_content_as_http_request {
-  my ( $self, $conteudo ) = @_; 
-  print "\r\n"."HTTP/1.1 200 OK\n";
-  print "\r\n" . $conteudo;
+sub content_as_http_request {
+  my ( $self, $args ) = @_; 
+  print        $args->{status_line};     # EX. HTTP/1.1 200 OK
+  print "\r\n",$args->{headers}         if exists $args->{headers};
+  print "\r\n",$args->{conteudo}        if exists $args->{conteudo};
   print "\n";
 }
 
@@ -342,12 +345,10 @@ sub process_request {
         if ( length $line == 0 || ! defined $line ) {
             $self->load_config();
             $self->http_request(  HTTP::Request->parse( join( "\n", @$lines ) )   );
-            return if $self->http_request->{ _uri }->as_string =~ m/^https/;
+            $lines = [] and last if $self->http_request->{ _uri }->as_string =~ m/^https|:443/g;
             warn $req_count++ ." URL REQUEST => ", $self->http_request->{ _uri }->as_string ,"\n";
             foreach my $plugin_method ( @{   $self->plugin_methods  } ) {
-                my $result                 = 0;
-                $result                    = $self->$plugin_method( {} );
-                if ( $result == 1 ) {
+                if ( $self->$plugin_method() == 1 ) {
                     $lines                = [];
                     $self->http_request(  undef  );
                 }
@@ -357,11 +358,13 @@ sub process_request {
               $self->response( $self->ua->request( $self->http_request ) );
               if ( $self->response->is_success || $self->response->is_redirect ) {
                 my $content = $self->content || $self->response->content;
+                $self->content_as_http_request( {
+                  conteudo    => $content,
+                  headers     => $self->response->headers->as_string,
+                  status_line => $self->response->protocol." ".$self->response->code." ".$self->response->message,
+                } );
                 $self->content( undef );
-                print $self->response->protocol." ".$self->response->code." ".$self->response->message; # EX. HTTP/1.1 200 OK
-                print "\r\n",$self->response->headers->as_string;
-                print "\r\n",$content;
-                print "\n";
+                $self->response( undef );
               }
             }
             $lines = [];
