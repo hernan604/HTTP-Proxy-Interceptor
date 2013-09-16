@@ -211,6 +211,8 @@ O proxy funciona bem liso, dá até pra ver vídeo no youtube! :)
 Instruções de uso:
 
 1. Salvar as configurações abaixo no arquivo de nome: "urls.json"
+   
+OBS: Apague os comentários
 
     {
       "http://www.site.com.br/js/script.js?v=136" : {
@@ -223,6 +225,41 @@ Instruções de uso:
       "http://publicador.intranet/resources/(?<caminho>.+)" : {
           "relative_path" : "/home/hernan/publicador/resources/"
       }
+    }
+
+OBS: Tambem é possivel usar estrutura perl para a configuracao. Utilize extensao .pl ex config.pl, e o exemplo:
+
+    {
+        #   Serve o conteudo de um arquivo local no lugar do conteudo de uma url
+      "http://www.site.com.br/js/script.js?v=136" => {
+          "file"            => "/home/webdev/teste.js"
+      },
+        #   Troca uma url pelo conteudo de outra url
+      "http://um.site.com.br/arquivo.js" => {
+          "url"             => "http://outro.site.com.br/outro.arquivo.js",
+          "use_random_var"  => false #opcional, para colocar variavel randomica ao final da url
+      },
+        #   Troca o conteudo de uma imagem pela imagem de outra url
+      "http://p1-cdn.trrsf.com/image/fget/cf/742/556/0/55/407/305/images.terra.com/2013/09/04/italianomortebrasileirafacereprod.jpg" => {
+          "url"             => "http://h.imguol.com/1309/14beyonce23-gb.jpg"
+      },
+        #   Carrega conteudo de arquivos locais ao inves do arquivo do site.
+        #   Pega o caminho relativamente igual aos diretorios do site.
+      "http://publicador.intranet/resources/(?<caminho>.+)" => {
+          "relative_path"   => "/home/hernan/publicador/resources/"
+      },
+        #   Troca o conteudo de um site pelo conteudo de ouro site
+      "http://www.site1.com.br/" => {
+          "url" => "http://www.site2.com.br/"
+      },
+        #   Altera o conteudo com o plugin de alterar conteudo
+      "http://www.w3schools.com/" => {
+          "code" => sub {
+            my ( $self, $content ) = @_;
+            $content =~ s/Learn/CLICK FOR WRONG/gix;
+            return $content;
+          }
+      },
     }
 
 2. Salve e execute este script, ex:
