@@ -29,17 +29,57 @@ after 'BUILD'=>sub {
 
 1;
 
-#
-#   TODO
-#
-#   package HTTP::URL::Intercept::Proxy::Plugin::ContentModifier;
-#   use Moose::Role;
-#   after 'response' => sub {
-#       my ( $self ) = @_; 
-#       warn '$self->response->content =~ s/blablabla/xyz/';
-#       warn 'or... config->{ opcao }->()  executa uma sub do arquivo de config';
-#   };
-#   1;
+package HTTP::URL::Intercept::Proxy::Plugin::ContentModifier;
+
+=head2
+
+Plugin para permite alterar o conteúdo de uma página. 
+
+Uma exigencia é usar perl no seu config.pl ao inves de config.json
+
+    "http://www.w3schools.com/" => {
+        "code" => sub {
+          my ( $self, $content ) = @_;
+          $content =~ s/Learn/CLICK FOR WRONG/gix;
+          return $content;
+        }
+    },
+
+No caso acima, sempte que abrir o site www.w3schools vai trocar a palavra "Learn" por "CLICK FOR WRONG"
+
+mas poderia ser usado para trocar caminhos de scripts, ou de imagens.
+
+=cut
+
+use Moose::Role;
+use Data::Printer;
+use IO::Uncompress::Gunzip qw(gunzip $GunzipError) ;
+
+after 'set_response' => sub {
+    my ( $self, $http_request ) = @_; 
+
+    if ( defined $http_request and
+         exists $self->urls_to_proxy->{ $self->url } and 
+         exists $self->urls_to_proxy->{ $self->url }->{ code } ) {
+        if ( exists $http_request->{ _headers }->{ "content-encoding" } and
+                    $http_request->{ _headers }->{ "content-encoding" } =~ m/gzip/ig ) {
+            my   $content             = $http_request->content;
+            my ( $content_decompressed, $scalar, $GunzipError );
+            gunzip \$content => \$content_decompressed,
+                        MultiStream => 1, Append => 1, TrailingData => \$scalar
+               or die "gunzip failed: $GunzipError\n";
+            if ( defined $content_decompressed ) {
+                warn "  INTERCEPTED => " , $self->url , "\n";
+                $content_decompressed = $self->urls_to_proxy->{ $self->url }->{ code }( $self, $content_decompressed );
+                $http_request->content( $content_decompressed );
+                delete $http_request->{ _headers }->{ "content-encoding" };
+                       $http_request->{ _headers }->{ "content-length" } = length $content_decompressed;
+            }
+        }
+    }
+};
+
+1;
 
 package HTTP::URL::Intercept::Proxy::Plugin::RelativePath;
 use Moose::Role;
@@ -109,8 +149,6 @@ sub replace_url {
     my $res = $self->ua->request( $req );
     $self->content( $res->content ) if $res->is_success || $res->is_redirect;
 
-#   ->...self->response( $self->ua->request( $self->http_request ) );
-#   my $res = $self->ua->get( $nova_url->as_string );
     return 0;
   }
 }
@@ -132,17 +170,17 @@ Plugin para abrir o conteudo de um arquivo e sobreescrever o conteúdo de uma ur
 =cut
 
 sub abre_arquivo {
-  my ( $self, $args ) = @_; 
-  if ( exists $self->urls_to_proxy->{ $self->http_request->{ _uri }->as_string } && 
-       exists $self->urls_to_proxy->{ $self->http_request->{ _uri }->as_string }->{ file } ) {
-    if ( -e $self->urls_to_proxy->{ $self->http_request->{ _uri }->as_string }->{ file } ) {
-      $self->print_file_as_request( $self->urls_to_proxy->{ $self->http_request->{ _uri }->as_string }->{ file } );
-      return 1;
-    } else {
-      warn " ARQUIVO NAO ENCONTRADO: " . $self->urls_to_proxy->{ $self->http_request->{ _uri }->as_string }->{ file };
+    my ( $self, $args ) = @_; 
+    if ( exists $self->urls_to_proxy->{ $self->http_request->{ _uri }->as_string } && 
+         exists $self->urls_to_proxy->{ $self->http_request->{ _uri }->as_string }->{ file } ) {
+        if ( -e $self->urls_to_proxy->{ $self->http_request->{ _uri }->as_string }->{ file } ) {
+          $self->print_file_as_request( $self->urls_to_proxy->{ $self->http_request->{ _uri }->as_string }->{ file } );
+          return 1;
+        } else {
+          warn " FILE NOT FOUND: " . $self->urls_to_proxy->{ $self->http_request->{ _uri }->as_string }->{ file };
+        }
+        return 0;
     }
-    return 0;
-  }
 }
 
 after 'BUILD'=>sub {
@@ -288,9 +326,10 @@ GetOptions("porta=i"                  => \$_arg_port ,
            "config=s"                 => \$config_file_name );
 
 has urls_to_proxy                     => (  is => 'rw' , default => sub {{}} );
-has response                          => (  is => 'rw'  );
+has response                          => (  is => 'rw' , writer => 'set_response' );
 has content                           => (  is => 'rw'  );
 has config_file_name                  => (  is => 'rw'  );
+has url                               => (  is => 'rw'  );
 
 sub load_config {
   my ( $self ) = @_; 
@@ -308,7 +347,7 @@ sub load_config {
       my $msg_ajuda = <<'AJUDA';
 
     *   Atencao.. se quiser interceptar urls e alterar seu conteudo, 
-        crie o arquivo urls.json ou outro nome com o seguinte conteudo:
+        crie o arquivo urls.json/config.json/config.pl ou outro nome com o seguinte conteudo:
 
     {
       "http://www.site.com.br/js/script.js?v=136" : {
@@ -368,6 +407,7 @@ sub content_as_http_request {
   print "\n";
 }
 
+
 my $lines = [];
 my $req_count = 0;
 sub process_request {
@@ -381,6 +421,7 @@ sub process_request {
             $self->load_config();
             $self->http_request(  HTTP::Request->parse( join( "\n", @$lines ) )   );
             $lines = [] and last if $self->http_request->{ _uri }->as_string =~ m/^https|:443/g;
+            $self->url( $self->http_request->{ _uri }->as_string );
             warn $req_count++ ." URL REQUEST => ", $self->http_request->{ _uri }->as_string ,"\n";
             foreach my $plugin_method ( @{   $self->plugin_methods  } ) {
                 if ( $self->$plugin_method() == 1 ) {
@@ -390,7 +431,7 @@ sub process_request {
             }
             last if ! defined $self->http_request;
             NORMAL_HTTP_REQUEST: {
-              $self->response( $self->ua->request( $self->http_request ) );
+              $self->set_response( $self->ua->request( $self->http_request ) );
               if ( $self->response->is_success || $self->response->is_redirect ) {
                 my $content = $self->content || $self->response->content;
                 $self->content_as_http_request( {
@@ -399,7 +440,7 @@ sub process_request {
                   status_line => $self->response->protocol." ".$self->response->code." ".$self->response->message,
                 } );
                 $self->content( undef );
-                $self->response( undef );
+                $self->set_response( undef );
               }
             }
             $lines = [];
@@ -430,6 +471,8 @@ with qw/
   HTTP::URL::Intercept::Proxy::Plugin::UrlReplacer
   HTTP::URL::Intercept::Proxy::Plugin::File
 /;
+
+# HTTP::URL::Intercept::Proxy::Plugin::ContentModifier
 # HTTP::URL::Intercept::Proxy::Plugin::ImageInverter
 #IMAGE INVERTER
 
