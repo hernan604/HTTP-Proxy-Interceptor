@@ -1,0 +1,13 @@
+{
+  "http://www.site.com.br/js/script.js" : {
+      "file" : "/path/to/my/local/script.js"
+  },
+
+  "http://www.site.com.br/logo.jpg" : {
+      "url" : "http://www.anothersite.com.br/logo.jpg"
+  },
+
+  "http://www.site.com.br/resources/(?<caminho>.+)" : {
+      "relative_path" : "/my/local/copy/resources/"
+  }
+}
