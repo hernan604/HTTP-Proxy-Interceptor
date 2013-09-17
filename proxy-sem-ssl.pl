@@ -457,7 +457,7 @@ sub process_request {
         if ( length $line == 0 || ! defined $line ) {
             $self->load_config();
             $self->http_request(  HTTP::Request->parse( join( "\n", @$lines ) )   );
-            $lines = [] and last if $self->http_request->{ _uri }->as_string =~ m/^https|:443/g;
+            $lines = [] and last if (exists $self->http_request->{ _uri } && $self->http_request->{ _uri }->as_string =~ m/^https|:443/g);
             $self->url( $self->http_request->{ _uri }->as_string );
             warn $req_count++ ." URL REQUEST => ", $self->http_request->{ _uri }->as_string ,"\n";
             foreach my $plugin_method ( @{   $self->plugin_methods  } ) {
