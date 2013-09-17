@@ -1,0 +1,11 @@
+{
+  "http://www.site.com.br/js/script.js?v=136" : {
+      "file" : "/home/hernan/teste.js"
+  },
+  "http://www.site.com.br/some/c/coolscript.js?ABC=xyz" : {
+      "url" : "http://www.outra-url.com.br/por-este-arquivo-no-lugar/novo_coolscripts.js?nome=maria"
+  },
+  "http://publicador.intranet/resources/(?<caminho>.+)" : {
+      "relative_path" : "/home/hernan/publicador/resources/"
+  }
+}
