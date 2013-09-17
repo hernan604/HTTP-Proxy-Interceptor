@@ -1,33 +1,26 @@
-=head2
-
-Plugin que inverte todas as imagens em todas as páginas e as faz aparecer de ponta cabeça
-
-=cut 
-
-
-package HTTP::URL::Intercept::Proxy::Plugin::ImageInverter;
-use Moose::Role;
-use GD::Image;
-use Data::Printer;
-
-sub invert_image {
-  my ( $self, $args ) = @_; 
-  return 0 if $self->http_request->uri->as_string !~ m/(png|gif|jpg|jpeg|bmp)$/;
-  my $req   = HTTP::Request->new( $self->http_request->method => $self->http_request->uri->as_string );
-  my $res   = $self->ua->request( $req );
-  my $image = GD::Image->new( $res->content );
-  return 0 if ! defined $image;
-  $image    = $image->copyRotate180();
-  $self->content( $image->gif() );
-  return 0;
-}
-
-after 'BUILD'=>sub {
-    my ( $self ) = @_; 
-    $self->append_plugin_method( "invert_image" );
-};
-
-1;
+#   =head2
+#   Plugin que inverte todas as imagens em todas as páginas e as faz aparecer de ponta cabeça
+#   =cut 
+#   package HTTP::URL::Intercept::Proxy::Plugin::ImageInverter;
+#   use Moose::Role;
+#   use GD::Image;
+#   use Data::Printer;
+#   sub invert_image {
+#     my ( $self, $args ) = @_; 
+#     return 0 if $self->http_request->uri->as_string !~ m/(png|gif|jpg|jpeg|bmp)$/;
+#     my $req   = HTTP::Request->new( $self->http_request->method => $self->http_request->uri->as_string );
+#     my $res   = $self->ua->request( $req );
+#     my $image = GD::Image->new( $res->content );
+#     return 0 if ! defined $image;
+#     $image    = $image->copyRotate180();
+#     $self->content( $image->gif() );
+#     return 0;
+#   }
+#   after 'BUILD'=>sub {
+#       my ( $self ) = @_; 
+#       $self->append_plugin_method( "invert_image" );
+#   };
+#   1;
 
 package HTTP::URL::Intercept::Proxy::Plugin::ContentModifier;
 
