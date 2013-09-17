@@ -12,7 +12,8 @@ sudo cpanm Moose LWP::UserAgent Data::Printer Config::Any File::Slurp URI URI::Q
 
 ## How to use
 
-write your roles in url.json, there is three diferent types.
+* Copy the file ```urls.json.example``` to ```urls.json```;
+* Write your roles in urls.json, there is three diferent types;
 
 ```javascript
 {
@@ -32,3 +33,6 @@ write your roles in url.json, there is three diferent types.
   }
 }
 ```
+
+* Start it! ```perl proxy-sem-ssl.pl```;
+* Set the browser to pass by proxy server ```http://localhost:9999```.
