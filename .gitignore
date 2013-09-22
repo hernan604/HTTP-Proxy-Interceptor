@@ -1,1 +1,8 @@
+/HTTP-Proxy-Interceptor-*
+/.build
+/_build*
+/Build
+MYMETA.*
+!META.json
+/.prove
 urls.json
