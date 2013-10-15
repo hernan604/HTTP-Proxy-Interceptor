@@ -1,26 +1,30 @@
-#   =head2
-#   Plugin que inverte todas as imagens em todas as páginas e as faz aparecer de ponta cabeça
-#   =cut 
-#   package HTTP::URL::Intercept::Proxy::Plugin::ImageInverter;
-#   use Moose::Role;
-#   use GD::Image;
-#   use Data::Printer;
-#   sub invert_image {
-#     my ( $self, $args ) = @_; 
-#     return 0 if $self->http_request->uri->as_string !~ m/(png|gif|jpg|jpeg|bmp)$/;
-#     my $req   = HTTP::Request->new( $self->http_request->method => $self->http_request->uri->as_string );
-#     my $res   = $self->ua->request( $req );
-#     my $image = GD::Image->new( $res->content );
-#     return 0 if ! defined $image;
-#     $image    = $image->copyRotate180();
-#     $self->content( $image->gif() );
-#     return 0;
-#   }
-#   after 'BUILD'=>sub {
-#       my ( $self ) = @_; 
-#       $self->append_plugin_method( "invert_image" );
-#   };
-#   1;
+=head2
+Plugin que inverte todas as imagens em todas as páginas e as faz aparecer de ponta cabeça
+=cut 
+
+package HTTP::URL::Intercept::Proxy::Plugin::ImageInverter;
+use Moose::Role;
+use GD::Image;
+use Data::Printer;
+
+sub invert_image {
+  my ( $self, $args ) = @_; 
+  return 0 if $self->http_request->uri->as_string !~ m/(png|gif|jpg|jpeg|bmp)$/;
+  my $req   = HTTP::Request->new( $self->http_request->method => $self->http_request->uri->as_string );
+  my $res   = $self->ua->request( $req );
+  my $image = GD::Image->new( $res->content );
+  return 0 if ! defined $image;
+  $image    = $image->copyRotate180();
+  $self->content( $image->gif() );
+  return 0;
+}
+
+after 'BUILD' => sub {
+    my ( $self ) = @_; 
+    $self->append_plugin_method( "invert_image" );
+};
+
+1;
 
 package HTTP::URL::Intercept::Proxy::Plugin::ContentModifier;
 
@@ -432,7 +436,8 @@ sub print_file_as_request {
 sub content_as_http_request {
   my ( $self, $args ) = @_; 
   print        $args->{status_line};     # EX. HTTP/1.1 200 OK
-  print "\r\n",$args->{headers}         if exists $args->{headers};
+  $args->{ headers }->content_length( length $args->{ conteudo } ) if exists $args->{ conteudo };
+  print "\r\n",$args->{headers}->as_string         if exists $args->{headers};
   print "\r\n",$args->{conteudo}        if exists $args->{conteudo};
   print "\n";
 }
@@ -466,7 +471,7 @@ sub process_request {
                 my $content = $self->content || $self->response->content;
                 $self->content_as_http_request( {
                   conteudo    => $content,
-                  headers     => $self->response->headers->as_string,
+                  headers     => $self->response->headers,
                   status_line => $self->response->protocol." ".$self->response->code." ".$self->response->message,
                 } );
                 $self->content( undef );
@@ -500,6 +505,7 @@ with qw/
   HTTP::URL::Intercept::Proxy::Plugin::RelativePath
   HTTP::URL::Intercept::Proxy::Plugin::UrlReplacer
   HTTP::URL::Intercept::Proxy::Plugin::File
+  HTTP::URL::Intercept::Proxy::Plugin::ImageInverter
 /;
 
 # HTTP::URL::Intercept::Proxy::Plugin::ContentModifier
