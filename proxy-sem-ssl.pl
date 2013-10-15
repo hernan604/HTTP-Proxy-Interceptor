@@ -15,7 +15,7 @@ sub invert_image {
   my $image = GD::Image->new( $res->content );
   return 0 if ! defined $image;
   $image    = $image->copyRotate180();
-  $self->content( $image->gif() );
+  $self->content( $image->png() );
   return 0;
 }
 

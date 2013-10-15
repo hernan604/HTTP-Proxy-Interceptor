@@ -131,6 +131,7 @@ sub process_request {
               $self->set_response( $self->ua->request( $self->http_request ) );
               if ( $self->response->is_success || $self->response->is_redirect ) {
                 my $content = $self->content || $self->response->content;
+                $self->response->headers->content_length( length $content ) if defined $content ;
                 $self->content_as_http_request( {
                   conteudo    => $content,
                   headers     => $self->response->headers->as_string,
