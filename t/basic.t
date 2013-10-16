@@ -28,15 +28,17 @@ my $pid_proxy       = fork_proxy( $proxy );
 my $ua              = HTTP::Tiny->new( ); #normal user agent
 my $ua_proxy        = HTTP::Tiny->new( proxy => "http://127.0.0.1:$proxy_port" ); #user agent with proxy
 
+# Access url /teste.js
+$url_path       = "/teste.js";
+my $res         = $ua->get( $server->root . $url_path );
+ok( $res->{ content } eq $tests_config->conteudos->{ $url_path }->{args}->{ content }->{ original } , "content is ok" );
+
 # Access url /scripts.js
 $url_path       = "/scripts.js";
 my $res_proxy   = $ua_proxy->get( $server->root . $url_path );
 ok( $res_proxy->{ content } eq $tests_config->conteudos->{ $url_path }->{args}->{ content }->{ original } , "original content is ok" );
 
-# Access url /teste.js
-$url_path       = "/teste.js";
-$res_proxy      = $ua_proxy->get( $server->root . $url_path );
-ok( $res_proxy->{ content } eq $tests_config->conteudos->{ $url_path }->{args}->{ content }->{ original } , "content is ok" );
+
 
 #kill webserver and proxyserver
 kill 'HUP', $pid_proxy, $pid_server;
