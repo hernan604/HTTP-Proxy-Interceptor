@@ -15,10 +15,10 @@ use base qw(Net::Server);
 
 has plugin_methods                    => (  is => 'rw' , default => sub {[]}  );
 has http_request                      => (  is => 'rw' );
-has porta                             => (  is => 'rw', default => sub { return 9999 } ) ;
+has port                              => (  is => 'rw', default => sub { return 9999 } ) ;
 my $_arg_port                         =     9999;
 my $config_file_name                  =     "urls.json";
-GetOptions("porta=i"                  =>    \$_arg_port , 
+GetOptions("port=i"                   =>    \$_arg_port , 
            "config=s"                 =>    \$config_file_name );
 has urls_to_proxy                     => (  is => 'rw' , default => sub {{}} );
 has response                          => (  is => 'rw' , writer => 'set_response' );
@@ -44,33 +44,6 @@ sub load_config {
       )->{ $self->config_file_name } ;
      $self->urls_to_proxy( $urls ); 
   }
-# else {
-#     my $msg_ajuda = <<'AJUDA';
-
-#   *   Atencao.. se quiser interceptar urls e alterar seu conteudo, 
-#       crie o arquivo urls.json/config.json/config.pl ou outro nome com o seguinte conteudo:
-
-#   {
-#     "http://www.site.com.br/js/script.js?v=136" : {
-#         "file" : "/home/hernan/teste.js"
-#     },
-#     "http://www.site.com.br/some/c/coolscript.js?ABC=xyz" : {
-#         "url" : "http://www.outra-url.com.br/por-este-arquivo-no-lugar/novo_coolscripts.js?nome=maria",
-#         "use_random_var"  : false
-#     },
-#     "http://publicador.intranet/resources/(?<caminho>.+)" : {
-#         "relative_path" : "/home/hernan/publicador/resources/"
-#     }
-#   }
-
-
-#   feito isso, execute o proxy com o comando:
-
-#   perl proxy-sem-ssl.pl -config nome_arquivo.json -porta 9000
-
-#JUDA
-#     warn $msg_ajuda; 
-# };
 }
 
 has ua => ( is => 'rw', default => sub {
@@ -151,7 +124,7 @@ sub process_request {
 sub BUILD {
   my ( $self ) = @_; 
   $self->load_config();
-  $self->porta( $_arg_port );
+  $self->port( $_arg_port );
 }
 
 before 'load_config' => sub {
@@ -168,7 +141,7 @@ __END__
 
 =head1 NAME
 
-HTTP::Proxy::Interceptor - Blah blah blah
+HTTP::Proxy::Interceptor - Intercept and modify http requests with plugins
 
 =head1 SYNOPSIS
 
@@ -241,11 +214,11 @@ OBS: Tambem é possivel usar estrutura perl para a configuracao. Utilize extensa
 
 2. Salve e execute este script, ex:
 
-    perl proxy-sem-ssl.pl -porta 9212
+    perl proxy-sem-ssl.pl -port 9212
 
-    * a porta padrão é 9999
+    * a port padrão é 9999
 
-3. Configure seu browser para usar o proxy na porta espeificada
+3. Configure seu browser para usar o proxy na port espeificada
 
 =head2 DESCRIPTION
 
