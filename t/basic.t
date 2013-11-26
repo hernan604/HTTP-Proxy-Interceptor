@@ -10,7 +10,7 @@ use Moose;
 extends qw/HTTP::Proxy::Interceptor/;
 
 my $url_path;
-my $proxy_port      = 32452;
+my $proxy_port      = int(rand(9999))+50000;
 
 # tests config, webserver config
 my $tests_config    = TestsConfig->new();
@@ -41,7 +41,7 @@ ok( $res_proxy->{ content } eq $tests_config->conteudos->{ $url_path }->{args}->
 
 
 #kill webserver and proxyserver
-kill 'HUP', $pid_proxy, $pid_server;
+kill 'KILL', $pid_proxy, $pid_server;
 
 sub fork_proxy {
     my $proxy = shift;
