@@ -10,21 +10,25 @@ use File::Slurp;
 use URI;
 use URI::QueryParam;
 use v5.10;
-use Getopt::Long;
 use base qw(Net::Server);
 
 has plugin_methods                    => (  is => 'rw' , default => sub {[]}  );
 has http_request                      => (  is => 'rw' );
 has port                              => (  is => 'rw', default => sub { return 9999 } ) ;
-my $_arg_port                         =     9999;
-my $config_file_name                  =     "urls.json";
-GetOptions("port=i"                   =>    \$_arg_port , 
-           "config=s"                 =>    \$config_file_name );
 has urls_to_proxy                     => (  is => 'rw' , default => sub {{}} );
 has response                          => (  is => 'rw' , writer => 'set_response' );
-has content                           => (  is => 'rw'  );
-has config_file_name                  => (  is => 'rw'  );
-has url                               => (  is => 'rw'  );
+
+has [ qw/
+  override_content
+  override_headers
+
+  response_code
+  response_msg
+
+  config_file_name
+  url
+  config_path
+/ ]                  => (  is => 'rw'  );
 
 sub append_plugin_method {
     my ( $self, $method ) = @_; 
@@ -33,17 +37,17 @@ sub append_plugin_method {
 }
 
 sub load_config {
-  my ( $self ) = @_; 
-  if ( -e $self->config_file_name ) {
-     my $urls = Config::Any->load_files(
-          {
-              files           => [ $self->config_file_name ],
-              use_ext         => 1,
-              flatten_to_hash => 1
-          }
-      )->{ $self->config_file_name } ;
-     $self->urls_to_proxy( $urls ); 
-  }
+    my ( $self ) = @_; 
+    if ( $self->config_path && -e $self->config_path ) {
+       my $urls = Config::Any->load_files(
+            {
+                files           => [ $self->config_path ],
+                use_ext         => 1,
+                flatten_to_hash => 1
+            }
+        )->{ $self->config_path } ;
+       $self->urls_to_proxy( $urls ); 
+    }
 }
 
 has ua => ( is => 'rw', default => sub {
@@ -89,8 +93,14 @@ sub process_request {
         push @$lines, $line;
         if ( length $line == 0 || ! defined $line ) {
             $self->load_config();
-            $self->http_request(  HTTP::Request->parse( join( "\n", @$lines ) )   );
-            $lines = [] and last if (exists $self->http_request->{ _uri } && $self->http_request->{ _uri }->as_string =~ m/^https|:443/g);
+            $self->http_request(   HTTP::Request->parse( join( "\n", @$lines ) )   );
+            ABORT_SSL_CONNECTIONS : {
+                if ( exists $self->http_request->{ _uri } && 
+                            $self->http_request->{ _uri }->as_string =~ m/^https|:443/g ) {
+                    $lines = [];
+                    last;
+                }
+            }
             $self->url( $self->http_request->{ _uri }->as_string );
             warn $req_count++ ." URL REQUEST => ", $self->http_request->{ _uri }->as_string ,"\n";
             foreach my $plugin_method ( @{   $self->plugin_methods  } ) {
@@ -101,18 +111,37 @@ sub process_request {
             }
             last if ! defined $self->http_request;
             NORMAL_HTTP_REQUEST: {
-              $self->set_response( $self->ua->request( $self->http_request ) );
-              if ( $self->response->is_success || $self->response->is_redirect ) {
-                my $content = $self->content || $self->response->content;
-                $self->response->headers->content_length( length $content ) if defined $content ;
-                $self->content_as_http_request( {
-                  conteudo    => $content,
-                  headers     => $self->response->headers->as_string,
-                  status_line => $self->response->protocol." ".$self->response->code." ".$self->response->message,
-                } );
-                $self->content( undef );
-                $self->set_response( undef );
-              }
+                $self->set_response( $self->ua->request( $self->http_request ) );
+                if ( $self->response->is_success || $self->response->is_redirect ) {
+                    $self->response_code( $self->response->code );
+                    $self->response_msg( $self->response->{ _msg } );
+                    my $content = (defined $self->override_content ) ? $self->override_content : $self->response->content;
+                    OVERRIDE_HEADERS : {
+                        if ( defined $self->override_headers ) {
+                            my $protocol = $self->response->protocol;
+                            $self->set_response(
+                                  HTTP::Response->new( 
+                                      $self->response_code, 
+                                      $self->response_msg, 
+                                      ( $self->override_headers ) ? $self->override_headers : $self->response->headers, 
+                                  ) 
+                            );
+                            $self->response->protocol($protocol);
+                        }
+                    }
+                    $self->response->headers->content_length( length $content ) if defined $content ;
+                    $self->content_as_http_request( {
+                        conteudo    => $content,
+                        headers     => $self->response->headers->as_string,
+                        status_line => $self->response->protocol." ".$self->response->code." ".$self->response->message,
+                    } );
+                    CLEANUP: {
+                        $self->override_content( undef );
+                        $self->set_response( undef );
+                        $self->response_code( undef );
+                        $self->response_msg( undef );
+                    }
+                }
             }
             $lines = [];
             last;
@@ -124,13 +153,14 @@ sub process_request {
 sub BUILD {
   my ( $self ) = @_; 
   $self->load_config();
-  $self->port( $_arg_port );
 }
 
-before 'load_config' => sub {
+sub start {
   my ( $self ) = @_; 
-  $self->config_file_name( $config_file_name );
-};
+  $self->run( 
+    port => $self->port
+  );
+}
 
 
 1;
@@ -141,70 +171,137 @@ __END__
 
 =head1 NAME
 
-HTTP::Proxy::Interceptor - Intercept and modify http requests with plugins
+HTTP::Proxy::Interceptor - Intercept and modify http requests w/ custom plugins
 
 =head1 SYNOPSIS
 
-  use HTTP::Proxy::Interceptor;
+Create your custom proxy with your custom plugin list.
+
+    package My::Custom::Proxy;
+    use Moose;
+    extends qw/HTTP::Proxy::Interceptor/;
+    with qw/
+      HTTP::Proxy::InterceptorX::Plugin::File
+      HTTP::Proxy::InterceptorX::Plugin::ContentModifier
+    /;
+     
+    1;
+
+    my $p = My::Custom::Proxy->new(
+      config_path => 'teste_config.pl',
+      port        => 9919,
+    );
+
+    $p->start ;
+    1;
+
+
+Create a config file with urls and options. Then start the proxy. Configure the browser and done.
 
 =head1 DESCRIPTION
 
-HTTP::Proxy::Interceptor is a proxy used to intercept browser http requests.
+HTTP::Proxy::Interceptor is a proxy you can use to intercept browser http requests.
 
-This tool makes easy to load local files for any url, so you could debug JS on some site you dont have access to for example.
+This tool makes easy to trick the browser to load local files for a given url. That way you can debug JS, or modify content on a site you dont have access to for example, or maybe a js in your site stopped working and you want to find out why.
+
+If there is not a plugin to do what you want, just create a plugin an use it.
+
+The plugin HTTP::Proxy::InterceptorX::Plugin::ImageInverter will invert everyimage.
 
 =head2 SYNOPSIS
 
-Atenção: Este script funciona apenas para urls HTTP e não HTTPS
-O proxy funciona bem liso, dá até pra ver vídeo no youtube! :)
+Important: This script works with HTTP requests and not HTTPS requests.
+Its working well and as a matter of fact its possible to watch youtube video.
 
-Instruções de uso:
+You need 4 steps to setup your custom proxy.
 
-1. Salvar as configurações abaixo no arquivo de nome: "urls.json"
+Instructions:
+
+1. Create your custom proxy with the plugins you need.
+
+I will name it proxy.pl:
+
+    package My::Custom::Proxy;
+    use Moose;
+    extends qw/HTTP::Proxy::Interceptor/;
+    with qw/
+      HTTP::Proxy::InterceptorX::Plugin::File
+      HTTP::Proxy::InterceptorX::Plugin::ContentModifier
+      HTTP::Proxy::InterceptorX::Plugin::ImageInverter
+      HTTP::Proxy::InterceptorX::Plugin::RelativePath
+      HTTP::Proxy::InterceptorX::Plugin::UrlReplacer
+    /;
+     
+    1;
+
+    my $p = My::Custom::Proxy->new(
+      config_path => 'teste_config.pl',
+      port        => 9919,
+    );
+
+    $p->start ;
+    1;
+
+2. Create a config file, choose a format and name your config. 
+
+It will be loaded using Config::Any, so you can name it your_config.json, your_config.pl, your_config.yamls, anyname.json
+
+Here is a urls.json config file example:
    
-OBS: Apague os comentários
-
     {
       "http://www.site.com.br/js/script.js?v=136" : {
-          "file" : "/home/hernan/teste.js"
+          "File" : "/home/user/replace/response/content/with/teste.js"
       },
       "http://www.site.com.br/some/c/coolscript.js?ABC=xyz" : {
-          "url" : "http://www.outra-url.com.br/por-este-arquivo-no-lugar/novo_coolscripts.js?nome=maria",
-          "use_random_var"  : true             <- opcional, vai colocar ?var3271587=672317 no fim da url
+          "UrlReplacer"      : "http://www.outra-url.com.br/por-este-arquivo-no-lugar/novo_coolscripts.js?nome=maria",
+          "use_random_var"   : true             <- optional, will append ?var3271587=672317 on the end of url, good for cache
       },
       "http://publicador.intranet/resources/(?<caminho>.+)" : {
-          "relative_path" : "/home/hernan/publicador/resources/"
+          "RelativePath" : "/home/hernan/publicador/resources/"
       }
     }
 
-OBS: Tambem é possivel usar estrutura perl para a configuracao. Utilize extensao .pl ex config.pl, e o exemplo:
+Some plugins (such as ContentModifier) might expect a coderef inside your config file, so json will not work. In that case you will need to save your config as pl file. 
+
+See this urls_config.pl file example:
 
     {
-        #   Serve o conteudo de um arquivo local no lugar do conteudo de uma url
+      #replaces the response-content with content from a specified file.
+      #plugin used: HTTP-Proxy-InterceptorX-Plugin-File
       "http://www.site.com.br/js/script.js?v=136" => {
-          "file"            => "/home/webdev/teste.js"
+          "File"            => "/home/webdev/teste.js"
       },
-        #   Troca uma url pelo conteudo de outra url
+
+      #replace the response-content with the content from another url
+      #plugin used: HTTP-Proxy-InterceptorX-Plugin-UrlReplacer
       "http://um.site.com.br/arquivo.js" => {
-          "url"             => "http://outro.site.com.br/outro.arquivo.js",
+          "UrlReplacer"     => "http://outro.site.com.br/outro.arquivo.js",
           "use_random_var"  => false #opcional, para colocar variavel randomica ao final da url
       },
-        #   Troca o conteudo de uma imagem pela imagem de outra url
+
+      #replaces an image with another image from another url.
+      #plugin used: HTTP-Proxy-InterceptorX-Plugin-UrlReplacer
       "http://p1-cdn.trrsf.com/image/fget/cf/742/556/0/55/407/305/images.terra.com/2013/09/04/italianomortebrasileirafacereprod.jpg" => {
-          "url"             => "http://h.imguol.com/1309/14beyonce23-gb.jpg"
+          "UrlReplacer"     => "http://h.imguol.com/1309/14beyonce23-gb.jpg"
       },
-        #   Carrega conteudo de arquivos locais ao inves do arquivo do site.
-        #   Pega o caminho relativamente igual aos diretorios do site.
+
+      #Loads the content from local files instead of files from the website.
+      #will read files from the relative path you specify
+      #plugin used: HTTP-Proxy-InterceptorX-Plugin-RelativePath
       "http://publicador.intranet/resources/(?<caminho>.+)" => {
-          "relative_path"   => "/home/hernan/publicador/resources/"
+          "RelativePath"   => "/home/hernan/publicador/resources/"
       },
-        #   Troca o conteudo de um site pelo conteudo de ouro site
+
+      #replace the response-content with the content from another url
+      #plugin used: HTTP-Proxy-InterceptorX-Plugin-UrlReplacer
       "http://www.site1.com.br/" => {
-          "url" => "http://www.site2.com.br/"
+          "UrlReplacer" => "http://www.site2.com.br/"
       },
-        #   Altera o conteudo com o plugin de alterar conteudo
+
+      #modify the response-content, but only some words.
+      #plugin used: HTTP-Proxy-InterceptorX-Plugin-ContentModifier
       "http://www.w3schools.com/" => {
-          "code" => sub {
+          "ContentModifier" => sub {
             my ( $self, $content ) = @_;
             $content =~ s/Learn/CLICK FOR WRONG/gix;
             return $content;
@@ -212,90 +309,52 @@ OBS: Tambem é possivel usar estrutura perl para a configuracao. Utilize extensa
       },
     }
 
-2. Salve e execute este script, ex:
+3. Having done that, make sure you installed the desired plugins and start your proxy with:
 
-    perl proxy-sem-ssl.pl -port 9212
+    perl proxy.pl
 
-    * a port padrão é 9999
+or if you prefer, download the plugins and start the proxy with:
 
-3. Configure seu browser para usar o proxy na port espeificada
+    perl -I../HTTP-Proxy-Interceptor/lib/ -I../HTTP-Proxy-InterceptorX-Plugin-ContentModifier/lib/ -I../HTTP-Proxy-InterceptorX-Plugin-File/lib/ -I../HTTP-Proxy-InterceptorX-Plugin-ImageInverter/lib/ -I../HTTP-Proxy-InterceptorX-Plugin-RelativePath/lib/ -I../HTTP-Proxy-InterceptorX-Plugin-UrlReplacer/lib/      proxy.pl
+
+4. Configure your browser and point to the proxy with the specified port
 
 =head2 DESCRIPTION
 
-Este script foi criado para auxiliar o debug de scripts em produção e scripts comitados.
+This proxy was concieved to assist debugging of production scripts and commited scripts. 
 
-As situações onde este proxy pode ser útil:
+After trying a couple proxy solutions, i noticed none of them satisfied my needs, some of them would just hang when hit with too many requests. 
 
-    1. Suponha que você quer debugar um JS de um site que você não tem acesso
-        é possível usar este proxy e debugar um js
+So i thought, why not create a newer proxy that can be extended with plugins created by anyone ? Would be great if we have that. Thats when HTTP::Proxy::Interceptor was born.
 
-    2. Seu site esté em produção e você precisa alterar um JS, mas o ambiente DEV ainda 
-        não está 100% pronto e o único jeito é alterar direto no servidor
+Its reinventing the wheel, but the wheel is smoother. If you find a bug, feel free to contact me, or fix them yourself and submit a pull request.
 
-        sugestão#1: alterar e debugar no ar com possibilidade de quebrar algo
-                #2: usar um proxy e interceptar a url do javascript e carregar um arquivo local
-                    isso permite testar localmente antes de subir a nova versão
+Useful situations to run this proxy:
+
+    1. Suppose you must debug a JS on a site you dont have access to
+        its possible with this proxy
+
+    2. Your site is 100% in production and you must modify a JS, however the DEV environment
+       is not ready yet. The only way is saving the file live, on the server. 
+       You can do that, and cross your fingers everything will work. Or, test using a
+       proxy and save only after testing locally.
     
-    3. Um script roda em produção e o ambiente de desenvolvimento não está preparado. Você
-       precisa arrumar um determinado JS e não vai ter acesso completo no site... vai 
-       ter que enviar a solução pronta por email para substituir o JS de prod.
+    3. A script is in production and you dont have access to 'save' the file. Then you
+       must send the file to someone so they replace it for you.
 
-        sugestão#1: usar um proxy que altera o conteudo do js, assim é possível debugar
-                    o js do site em produção sem ter necessariamente acesso a esse arquivo.
-                    Tudo é feito localmente enquanto o browser pensa que está acessando o
-                    conteúdo verdadeiro, mas você na verdade serve conteúdo modificado com 
-                    seu código.
-
-    DICA: O firefox junto com foxyproxy possibilita filtrar apenas algumas urls específicas.
-
-=head2 CONFIGURAÇÃO
-
-O arquivo de configuração padrão é o urls.json 
-
-Neste momento são permitidas 3 tipos de configuração.
-
-    1.  url   =>  file
-        Aqui o proxy vai trocar o conteúdo de uma url pelo conteúdo de um arquivo local
-
-    ex: "http://www.site.com.br/js/script.js?v=136" : {
-            "file" : "/home/hernan/teste.js"
-        }
-
-    2.  url   =>  outra url
-        Aqui o proxy vai trocar o conteúdo de uma url pelo conteúdo de outra url
-
-    ex: "http://www.site.com.br/some/c/coolscript.js?ABC=xyz" : {
-            "url" : "http://www.outra-url.com.br/por-este-arquivo-no-lugar/novo_coolscripts.js?nome=maria"
-        }
-
-    3.  url*  =>  relative_path*
-        Aqui o proxy vai associar uma url/* com diretorios/* e vai abrir arquivos locais respectivamente
-      
-    ex: "http://publicador.intranet/resources/(?<caminho>.+)" : {
-            "relative_path" : "/home/hernan/publicador/resources/"
-        }
-
-    Arquivo de configuração com as 3 opções: ( salvar como urls.json )
-
-    {
-      "http://www.site.com.br/js/script.js?v=136" : {
-          "file" : "/home/hernan/teste.js"
-      },
-      "http://www.site.com.br/some/c/coolscript.js?ABC=xyz" : {
-          "url" : "http://www.outra-url.com.br/por-este-arquivo-no-lugar/novo_coolscripts.js?nome=maria"
-      },
-      "http://publicador.intranet/resources/(?<caminho>.+)" : {
-          "relative_path" : "/home/hernan/publicador/resources/"
-      }
-    }
+    TIP: In Firefox with FoxyProxy you can filter out which urls must pass over the proxy
 
 =head1 AUTHOR
 
 Hernan Lopes E<lt>hernan@cpan.orgE<gt>
 
+=head1 CONTRIBUTORS
+
+Fixed something? Created or fixed a feature ? add your name here
+
 =head1 COPYRIGHT
 
-Copyright 2013- Hernan Lopes
+Copyright 2013 - Hernan Lopes
 
 =head1 LICENSE
 
