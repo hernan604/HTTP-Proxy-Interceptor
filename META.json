@@ -1,5 +1,5 @@
 {
-   "abstract" : "Blah blah blah",
+   "abstract" : "Intercept and modify http requests w/ custom plugins",
    "author" : [
       "Hernan Lopes <hernan@cpan.org>"
    ],
@@ -46,6 +46,22 @@
       }
    },
    "release_status" : "stable",
-   "version" : "0.01"
+   "resources" : {
+      "bugtracker" : {
+         "web" : "https://github.com/hernan604/HTTP-Proxy-Interceptor/issues"
+      },
+      "homepage" : "https://github.com/hernan604/HTTP-Proxy-Interceptor",
+      "repository" : {
+         "type" : "git",
+         "url" : "https://github.com/hernan604/HTTP-Proxy-Interceptor.git",
+         "web" : "https://github.com/hernan604/HTTP-Proxy-Interceptor"
+      }
+   },
+   "version" : "0.01",
+   "x_contributors" : [
+      "Gianpaulo <jam_pow@hotmail.com>",
+      "Hernan Lopes <aut_hlopes@uolinc.com>",
+      "hernan lopes <hernan@cpan.org>"
+   ]
 }
 
