@@ -66,11 +66,11 @@ has ua => ( is => 'rw', default => sub {
 } );
 
 sub print_file_as_request {
-  my ( $self, $caminho ) = @_; 
-  my $conteudo = read_file( $caminho ) if -e $caminho;
-  warn "  INTERCEPTED => ", $caminho, "\n";
+  my ( $self, $path ) = @_; 
+  my $content = read_file( $path ) if -e $path;
+  warn "  INTERCEPTED => ", $path, "\n";
   $self->content_as_http_request( {
-    conteudo    => $conteudo,
+    content     => $content,
     status_line => "HTTP/1.1 200 OK\n",
   } );
 }
@@ -79,7 +79,7 @@ sub content_as_http_request {
   my ( $self, $args ) = @_; 
   print        $args->{status_line};     # EX. HTTP/1.1 200 OK
   print "\r\n",$args->{headers}         if exists $args->{headers};
-  print "\r\n",$args->{conteudo}        if exists $args->{conteudo};
+  print "\r\n",$args->{content}         if exists $args->{content};
 # print "\n";
 }
 
@@ -132,7 +132,7 @@ sub process_request {
                     }
                     $self->response->headers->content_length( length $content ) if defined $content ;
                     $self->content_as_http_request( {
-                        conteudo    => $content,
+                        content     => $content,
                         headers     => $self->response->headers->as_string,
                         status_line => $self->response->protocol." ".$self->response->code." ".$self->response->message,
                     } );
