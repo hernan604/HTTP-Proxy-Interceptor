@@ -11,6 +11,7 @@ use URI;
 use URI::QueryParam;
 use v5.10;
 use base qw(Net::Server);
+use IO::Uncompress::Gunzip qw(gunzip $GunzipError) ;
 
 has plugin_methods                    => (  is => 'rw' , default => sub {[]}  );
 has http_request                      => (  is => 'rw' );
@@ -161,6 +162,27 @@ sub start {
     port => $self->port
   );
 }
+
+after 'set_response' => sub {
+    my ( $self, $http_request ) = @_;
+    DECOMPRESS_CONTENT: {
+        #always decompress the response so plugins dont need to
+        if ( defined $http_request and
+             defined $http_request->content and
+             exists  $http_request->{ _headers }->{ "content-encoding" } and
+                     $http_request->{ _headers }->{ "content-encoding" } =~ m/gzip/ig ) {
+            my   $content             = $http_request->content;
+            my ( $content_decompressed, $scalar, $GunzipError );
+            gunzip \$content => \$content_decompressed,
+                        MultiStream => 1, Append => 1, TrailingData => \$scalar
+               or die "gunzip failed: $GunzipError\n";
+               $content = $content_decompressed;
+                delete $http_request->{ _headers }->{ "content-encoding" };
+                       $http_request->{ _headers }->{ "content-length" } = length $content_decompressed;
+            $http_request->{ _content } = $content;
+        }
+    }
+};
 
 
 1;
