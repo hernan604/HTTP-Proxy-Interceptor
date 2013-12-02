@@ -195,41 +195,6 @@ __END__
 
 HTTP::Proxy::Interceptor - Intercept and modify http requests w/ custom plugins
 
-=head1 SYNOPSIS
-
-Create your custom proxy with your custom plugin list.
-
-    package My::Custom::Proxy;
-    use Moose;
-    extends qw/HTTP::Proxy::Interceptor/;
-    with qw/
-      HTTP::Proxy::InterceptorX::Plugin::File
-      HTTP::Proxy::InterceptorX::Plugin::ContentModifier
-    /;
-     
-    1;
-
-    my $p = My::Custom::Proxy->new(
-      config_path => 'teste_config.pl',
-      port        => 9919,
-    );
-
-    $p->start ;
-    1;
-
-
-Create a config file with urls and options. Then start the proxy. Configure the browser and done.
-
-=head1 DESCRIPTION
-
-HTTP::Proxy::Interceptor is a proxy you can use to intercept browser http requests.
-
-This tool makes easy to trick the browser to load local files for a given url. That way you can debug JS, or modify content on a site you dont have access to for example, or maybe a js in your site stopped working and you want to find out why.
-
-If there is not a plugin to do what you want, just create a plugin an use it.
-
-The plugin HTTP::Proxy::InterceptorX::Plugin::ImageInverter will invert everyimage.
-
 =head2 SYNOPSIS
 
 Important: This script works with HTTP requests and not HTTPS requests.
@@ -343,7 +308,13 @@ or if you prefer, download the plugins and start the proxy with:
 
 =head2 DESCRIPTION
 
-This proxy was concieved to assist debugging of production scripts and commited scripts. 
+HTTP::Proxy::Interceptor is a proxy you can use to intercept browser http requests and debug production scripts and commited scripts. 
+
+This tool makes easy to trick the browser to load local files for a given url. That way you can debug JS, or modify content on a site you dont have access to for example, or maybe a js in your site stopped working and you want to find out why.
+
+If there is not a plugin to do what you want, just create a plugin an use it.
+
+The plugin HTTP::Proxy::InterceptorX::Plugin::ImageInverter will invert everyimage.
 
 After trying a couple proxy solutions, i noticed none of them satisfied my needs, some of them would just hang when hit with too many requests. 
 
