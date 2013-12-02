@@ -337,6 +337,21 @@ Useful situations to run this proxy:
 
     TIP: In Firefox with FoxyProxy you can filter out which urls must pass over the proxy
 
+=head1 CONFIGURATION
+
+You can have the configuration in json, perl, yaml etc. Config::Any will be used to read config.
+
+However, if you prefer not having a config file, just pass it to your instance ie:
+
+    my $p = My::Custom::Proxy->new(
+      config_path => 'teste_config.pl',
+      port        => 9919,
+      urls_to_proxy=> {
+          .... the configuration here ...
+      }
+    );
+
+
 =head1 AUTHOR
 
 Hernan Lopes E<lt>hernan@cpan.orgE<gt>
