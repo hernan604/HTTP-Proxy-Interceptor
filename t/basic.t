@@ -38,6 +38,19 @@ $url_path       = "/scripts.js";
 my $res_proxy   = $ua_proxy->get( $server->root . $url_path );
 ok( $res_proxy->{ content } eq $tests_config->conteudos->{ $url_path }->{args}->{ content }->{ original } , "original content is ok" );
 
+CONTENT_COMPRESSED: {
+# Access url /content-compressed.js
+$url_path       = "/content-compressed.js";
+my $res_proxy   = $ua_proxy->get( $server->root . $url_path );
+ok( $res_proxy->{ content } eq "some input to be compressed" , "received a compressed content which was properly decompressed" );
+}
+
+# Access url /teste.js
+$url_path       = "/content-compressed.js";
+my $res         = $ua->get( $server->root . $url_path );
+ok( $res->{ content } =~ m/.+/ig , "received some content" );
+ok( $res->{ headers }->{ "content-encoding" } eq "gzip", "Received header content-encoding with gzip value" );
+
 
 
 #kill webserver and proxyserver
