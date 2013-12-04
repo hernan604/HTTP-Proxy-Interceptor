@@ -2,6 +2,8 @@ package TestsConfig;
 use Moose;
 use IO::Compress::Gzip qw(gzip $GzipError);
 
+my $text = "some input to be compressed";
+
 has conteudos => (
     is => 'ro',
     default => sub {
@@ -47,14 +49,12 @@ SCRIPT
                     content => {
                         original => sub {
                             #returns a gzipped content
-                            my $input = "some input to be compressed";
+                            my $input = $text;
                             my $compressed_output;
                             my $status = gzip \$input => \$compressed_output or die "gzip failed: $GzipError\n";
                             return $compressed_output;
                           }->()
-                        ,altered => <<SCRIPT
-var altered_content = "other content";
-SCRIPT
+                        ,uncompressed_text => $text
                     }
                 }
             }

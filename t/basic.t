@@ -7,6 +7,7 @@ use HTTP::Tiny;
 use Data::Printer;
 use TestsConfig;
 use Moose;
+use IO::Uncompress::Gunzip qw(gunzip $GunzipError) ;
 extends qw/HTTP::Proxy::Interceptor/;
 
 my $url_path;
@@ -39,19 +40,22 @@ my $res_proxy   = $ua_proxy->get( $server->root . $url_path );
 ok( $res_proxy->{ content } eq $tests_config->conteudos->{ $url_path }->{args}->{ content }->{ original } , "original content is ok" );
 
 CONTENT_COMPRESSED: {
-# Access url /content-compressed.js
-$url_path       = "/content-compressed.js";
-my $res_proxy   = $ua_proxy->get( $server->root . $url_path );
-ok( $res_proxy->{ content } eq "some input to be compressed" , "received a compressed content which was properly decompressed" );
+    # Access url /content-compressed.js
+    $url_path       = "/content-compressed.js";
+    my $res_proxy   = $ua_proxy->get( $server->root . $url_path );
+    ok( $res_proxy->{ content } eq $tests_config->conteudos->{ $url_path }->{args}->{ content }->{ uncompressed_text } , "received a compressed content which was properly decompressed" );
+
+    $url_path       = "/content-compressed.js";
+    my $res         = $ua->get( $server->root . $url_path );
+    ok( $res->{ content } =~ m/.+/ig , "received some content" );
+    ok( $res->{ content } ne $tests_config->conteudos->{ $url_path }->{args}->{ content }->{ uncompressed_text } , "content is probably gzipped" );
+    my $output;
+    my $status = gunzip \$res->{ content } => \$output
+        or die "gunzip failed: $GunzipError\n";
+
+    ok( $output eq $tests_config->conteudos->{ $url_path }->{args}->{ content }->{ uncompressed_text } , "gunziped content and the text matches" );
+    ok( $res->{ headers }->{ "content-encoding" } eq "gzip", "Received header content-encoding with gzip value" );
 }
-
-# Access url /teste.js
-$url_path       = "/content-compressed.js";
-my $res         = $ua->get( $server->root . $url_path );
-ok( $res->{ content } =~ m/.+/ig , "received some content" );
-ok( $res->{ headers }->{ "content-encoding" } eq "gzip", "Received header content-encoding with gzip value" );
-
-
 
 #kill webserver and proxyserver
 kill 'KILL', $pid_proxy, $pid_server;
