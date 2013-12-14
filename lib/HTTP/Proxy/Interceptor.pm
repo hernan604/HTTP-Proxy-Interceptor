@@ -124,7 +124,7 @@ sub process_request {
                                   HTTP::Response->new( 
                                       $self->response_code, 
                                       $self->response_msg, 
-                                      ( $self->override_headers ) ? $self->override_headers : $self->response->headers, 
+                                      $self->override_headers, 
                                   ) 
                             );
                             $self->response->protocol($protocol);
